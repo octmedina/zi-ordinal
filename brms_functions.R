@@ -7,6 +7,11 @@ library(rstan)
 library(bayesplot)
 
 
+
+# create custom family for zero inflated ordinal
+# define two parameters (mu and eta), one for the zero inflation (mu)
+# and one for the regular ordinal part (eta)
+# also have to define the (threshold) intercept variable (c_int) 
 zi_ordinal <- custom_family(
   "zi_ordinal", dpars = c("mu", "eta"),
   links = c("identity"), lb = c(NA, NA),
@@ -14,6 +19,8 @@ zi_ordinal <- custom_family(
 )
 
 
+# define stan functions
+# we define the lpmf and the random number generator
 stan_funs <- stanvar(block = "functions", scode = "
   real zi_ordinal_lpmf(int k, real mu, real eta, vector c_int) {
       if (k == 0) // assume non-response coded as 0
@@ -29,12 +36,17 @@ stan_funs <- stanvar(block = "functions", scode = "
   }
 ")
 
+# this feels sort of hacky, but to define the ordered c_int variable i had to
+# add this to the parameters block, as well as the number of categories (n_thresh)
 ordered_var <- stanvar(scode = "ordered[n_thresh] c_int;", block = "parameters")
 ncat_var <- stanvar(x = 3, name = "n_thresh", scode = "int n_thresh;")
 stanvars <- ordered_var + ncat_var + stan_funs
 
+# read in data
 data <- read_csv("https://raw.githubusercontent.com/octmedina/zi-ordinal/main/merkel_data.csv") 
 
+
+# fit the model. it works!
 fit_zi_ord <- brm(
   bf(confid_merkel ~ 1 + party + income + edu + race,
      eta ~ 0 + party + income + edu + race),
@@ -44,8 +56,7 @@ fit_zi_ord <- brm(
   cores = 2
 )
 
-# Posterior predict function
-
+# Create posterior predict function for post-processing
 posterior_predict_zi_ordinal <- function(i, prep, ...) {
   c_all <- rstan::extract(fit_zi_ord$fit, pars = "c_int") # extract intercepts
   c_int <- as.matrix(c_all$c_int[,1:3]) # convert to matrix
