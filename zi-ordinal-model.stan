@@ -40,10 +40,8 @@ model {
 }
 generated quantities {
   vector[N] yrep; // generate samples
-  vector[N] temp;
   for (n in 1:N) {
-    temp[n] = bernoulli_rng(inv_logit(alpha_p + x[n] * beta_p));
-    if (temp[n] == 1)
+    if (bernoulli_rng(inv_logit(alpha_p + x[n] * beta_p)) == 1)
       yrep[n] = 0;
     else
       yrep[n] = ordered_logistic_rng(x[n] * beta, c);
